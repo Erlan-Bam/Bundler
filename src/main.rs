@@ -3,34 +3,43 @@ use std::io::{Write};
 use walkdir::WalkDir;
 use std::io::{BufRead, BufReader, BufWriter};
 
+const EDITABLE_SINGLE_TAGS: &[&str] = &[
+    "br", "hr", "img", "input", "link", "meta", "source", "track", "wbr"
+];
 const EDITABLE_TAGS: &[&str] = &[
-    "a", "abbr", "address", "article", "aside", "b", "bdi", "bdo", "blockquote", "button", "canvas",
-    "caption", "cite", "code", "data", "dd", "del", "details", "dfn", "div", "dl", "dt", "em",
-    "figcaption", "figure", "footer", "form", "h1", "h2", "h3", "h4", "h5", "h6", "header", "i",
-    "iframe", "ins", "kbd", "label", "legend", "li", "mark", "meter", "nav", "output", "p", "pre",
-    "progress", "q", "rp", "rt", "ruby", "s", "samp", "section", "small", "span", "strong", "sub",
-    "summary", "sup", "table", "tbody", "td", "textarea", "tfoot", "th", "thead", "time", "tr", "u",
-    "var", "wbr"
+    "blockquote", "figcaption", "progress", "textarea", "address", "article", "caption", "details",
+    "section", "summary", "button", "canvas", "figure", "footer", "header", "iframe", "legend",
+    "output", "strong", "aside", "label", "meter", "small", "table", "tbody", "tfoot", "thead",
+    "abbr", "cite", "code", "data", "form", "mark", "ruby", "samp", "span", "time", "bdi", "bdo",
+    "del", "dfn", "div", "ins", "kbd", "nav", "pre", "sub", "sup", "var", "wbr", "img", "dd", "dl",
+    "dt", "em", "h1", "h2", "h3", "h4", "h5", "h6", "li", "rp", "rt", "td", "th", "tr", "a", "b",
+    "i", "p", "q", "s", "u"
 ];
 
-fn check(line: &str) -> bool {
+fn check(line: &str) -> (bool, bool) {
     for tag in EDITABLE_TAGS.iter() {
         if line.contains(&format!("<{}", tag)) && line.find("editable").is_some() {
-            return true;
+            println!("{tag}");
+            let is_single_tag = EDITABLE_SINGLE_TAGS.contains(tag);
+            return (true, is_single_tag);
         }
     }
-    false
+    (false, false)
 }
 
 fn add_editable(line: &str, name: &str, website_id: &str, current_id: &mut i32) -> String {
-    if check(line) {
-        if let Some(mut pos) = line.rfind('>') {
-            pos -= 1;
+    let (is_editable, is_single_tag) = check(line);
+    if is_editable {
+        println!("{is_single_tag}");
+        let last = if is_single_tag { "/" } else { ">" };
+
+        if let Some(mut pos) = line.rfind(last) {
+
             let new_id = format!(r#"id="{}_editable_{}_{}""#, name, website_id, current_id);
             println!("Position: {pos}, New ID: {new_id}");
             *current_id += 1;
-            let (before, after) = line.split_at(pos + 1);
-            return format!("{before} {new_id} {after}");
+            let (before, after) = line.split_at(pos);
+            return format!("{} {}{}", before, new_id, after);
         }
     }
     line.to_string()
@@ -64,7 +73,7 @@ fn main() -> std::io::Result<()> {
     let mut current_id = 0;
 
     for entry in WalkDir::new(root_dir).into_iter().filter_map(|e| e.ok()) {
-        if entry.file_type().is_file() {
+        if entry.file_type().is_file() || (entry.file_type().is_dir() && entry.file_name() == "node_modules") {
             let file_path = entry.path();
             if let Some(extension) = file_path.extension().and_then(|ext| ext.to_str()) {
                 if extension == "jsx" || extension == "tsx" {
