@@ -19,14 +19,15 @@ export const AboutCard: React.FC<IAboutCard> = ({
                                                     secondId,
                                                 }) => {
     return (
-        <div className={`${styles.about_card} editable`} id="exampleName_editable_exampleWebsiteId_0" >
+        <div className={`${styles.about_card} editable`} id="exampleName_editable_exampleWebsiteId_0">
             <IconDot icon={icon} />
-            <span className={`${styles.about_card} editable`} id="exampleName_editable_exampleWebsiteId_1" >
-        {name}
-      </span>
+            <span className={`${styles.about_card} editable`} id="exampleName_editable_exampleWebsiteId_1">
+                {name}
+            </span>
             <span className={styles.about_card__text} id={secondId}>
-        {text}
-      </span>
+                {text}
+            </span>
+            <img src={"something editable"} id="exampleName_editable_exampleWebsiteId_2"/>
         </div>
     );
 }; 101

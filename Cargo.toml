@@ -4,4 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+fs_extra = "1.2"
+duct = "0.13"
 walkdir = "2.5.0"
