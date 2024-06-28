@@ -1,7 +1,8 @@
 use std::fs::{File};
-use std::io::{Write};
+use std::io::{Write, BufRead, BufReader, BufWriter};
 use walkdir::WalkDir;
-use std::io::{BufRead, BufReader, BufWriter};
+use duct::cmd;
+
 const EDITABLE_SINGLE_TAGS: &[&str] = &[
     "br", "hr", "img", "input", "link", "meta", "source", "track", "wbr"
 ];
@@ -16,6 +17,9 @@ const EDITABLE_TAGS: &[&str] = &[
 ];
 
 fn check(line: &str) -> (bool, bool) {
+    if line.contains("id="){
+        return (false, false);
+    }
     for tag in EDITABLE_TAGS.iter() {
         if line.contains(&format!("<{tag}")) && line.find("editable").is_some() {
             let is_single_tag = EDITABLE_SINGLE_TAGS.contains(tag);
@@ -33,12 +37,10 @@ fn add_editable(line: &str, name: &str, website_id: &str, current_id: &mut i32) 
         for (index, char) in line.chars().enumerate() {
             if char == '<' && found {
                 break;
-            }
-            else if(is_single_tag && char == '/'){
+            } else if is_single_tag && char == '/' {
                 pos = index;
                 break;
-            }
-            else if char == '>' {
+            } else if char == '>' {
                 found = true;
                 pos = index;
             }
@@ -48,8 +50,7 @@ fn add_editable(line: &str, name: &str, website_id: &str, current_id: &mut i32) 
 
         *current_id += 1;
         let (before, after) = line.split_at(pos);
-        return format!("{} {}{}", before, new_id, after);
-
+        return format!("{before} {new_id}{after}");
     }
     line.to_string()
 }
@@ -74,6 +75,31 @@ fn modify_file(file_path: &str, name: &str, website_id: &str, current_id: &mut i
     Ok(())
 }
 
+fn run_build(path: &str) -> std::io::Result<()> {
+    let result = cmd!("C:\\Program Files\\nodejs\\npm.cmd", "run", "build")
+        .dir(path)
+        .stdout_capture()
+        .stderr_capture()
+        .unchecked()
+        .run();
+
+    match result {
+        Ok(output) => {
+            if output.status.success() {
+                println!("Build succeeded.");
+            } else {
+                println!("Build failed with the following error:\n{}", String::from_utf8_lossy(&output.stderr));
+                return Err(std::io::Error::new(std::io::ErrorKind::Other, "Build failed"));
+            }
+        }
+        Err(err) => {
+            println!("Failed to execute build command: {:?}", err);
+            return Err(std::io::Error::new(std::io::ErrorKind::Other, format!("Failed to execute build command: {:?}", err)));
+        }
+    }
+    Ok(())
+}
+
 fn main() -> std::io::Result<()> {
     let root_dir = "C:/Users/erlan/RustroverProjects/Bundler/Simple";
 
@@ -87,12 +113,11 @@ fn main() -> std::io::Result<()> {
         }
         if entry.file_type().is_file() && entry.file_name() == "CatalogButton.tsx" {
             let file_path = entry.path();
-            if let Some(extension) = file_path.extension().and_then(|ext| ext.to_str()) {
-                if extension == "jsx" || extension == "tsx" {
-                    modify_file(file_path.to_str().unwrap(), name, website_id, &mut current_id)?;
-                }
-            }
+            modify_file(file_path.to_str().unwrap(), name, website_id, &mut current_id)?;
         }
     }
+
+    run_build(root_dir)?;
+
     Ok(())
 }
