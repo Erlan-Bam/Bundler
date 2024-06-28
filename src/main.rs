@@ -2,7 +2,6 @@ use std::fs::{File};
 use std::io::{Write};
 use walkdir::WalkDir;
 use std::io::{BufRead, BufReader, BufWriter};
-
 const EDITABLE_SINGLE_TAGS: &[&str] = &[
     "br", "hr", "img", "input", "link", "meta", "source", "track", "wbr"
 ];
