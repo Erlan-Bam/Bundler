@@ -1,6 +1,10 @@
 use std::fs::{File};
 use std::io::{Write, BufRead, BufReader, BufWriter};
 use walkdir::WalkDir;
+use wasm_bindgen::prelude::*;
+use web_sys::console;
+
+#[cfg(not(target_arch = "wasm32"))]
 use duct::cmd;
 
 const EDITABLE_SINGLE_TAGS: &[&str] = &[
@@ -59,14 +63,14 @@ fn modify_file(file_path: &str, name: &str, website_id: &str, current_id: &mut i
     let file = File::open(file_path)?;
     let reader = BufReader::new(file);
 
-    let temp_file_path = format!("{}.tmp", file_path);
+    let temp_file_path = format!("{file_path}.tmp");
     let temp_file = File::create(&temp_file_path)?;
     let mut writer = BufWriter::new(temp_file);
 
     for line in reader.lines() {
         let line = line?;
         let modified_line = add_editable(&line, name, website_id, current_id);
-        writeln!(writer, "{}", modified_line)?;
+        writeln!(writer, "{modified_line}")?;
     }
 
     writer.flush()?;
@@ -75,8 +79,9 @@ fn modify_file(file_path: &str, name: &str, website_id: &str, current_id: &mut i
     Ok(())
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn run_build(path: &str) -> std::io::Result<()> {
-    let result = cmd!("C:\\Program Files\\nodejs\\npm.cmd", "run", "build")
+    let result = cmd!("npm", "run", "build")
         .dir(path)
         .stdout_capture()
         .stderr_capture()
@@ -100,24 +105,27 @@ fn run_build(path: &str) -> std::io::Result<()> {
     Ok(())
 }
 
-fn main() -> std::io::Result<()> {
-    let root_dir = "C:/Users/erlan/RustroverProjects/Bundler/Simple";
+fn io_error_to_js_value(err: std::io::Error) -> JsValue {
+    JsValue::from_str(&format!("{}", err))
+}
 
-    let name = "exampleName"; // Example name, replace with actual value
-    let website_id = "exampleWebsiteId"; // Example website ID, replace with actual value
-    let mut current_id = 0;
+#[wasm_bindgen]
+pub fn run_wasm(root_dir: &str, name: &str, website_id: &str) -> Result<(), JsValue> {
+    let mut current_id: i32 = 0;
 
     for entry in WalkDir::new(root_dir).into_iter().filter_map(|e| e.ok()) {
         if entry.file_type().is_dir() && entry.file_name() == "node_modules" {
             continue;
         }
-        if entry.file_type().is_file() && entry.file_name() == "CatalogButton.tsx" {
+        if entry.file_type().is_file() {
             let file_path = entry.path();
-            modify_file(file_path.to_str().unwrap(), name, website_id, &mut current_id)?;
+            modify_file(file_path.to_str().unwrap(), name, website_id, &mut current_id)
+                .map_err(io_error_to_js_value)?;
         }
     }
 
-    run_build(root_dir)?;
+    #[cfg(not(target_arch = "wasm32"))]
+    run_build(root_dir).map_err(io_error_to_js_value)?;
 
     Ok(())
 }

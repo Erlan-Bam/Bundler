@@ -1,9 +1,22 @@
 [package]
-name = "Bundler"
+name = "bundler"
 version = "0.1.0"
 edition = "2021"
 
+[[bin]]
+name = "bundler"
+path = "src/lib.rs"
+
 [dependencies]
 fs_extra = "1.2"
-duct = "0.13"
 walkdir = "2.5.0"
+wasm-bindgen = "0.2"
+web-sys = { version = "0.3.69", features = ["console"] }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+duct = "0.13"
+os_pipe = "1.2"
+shared_child = "1.0"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
