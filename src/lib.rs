@@ -81,7 +81,11 @@ fn modify_file(file_path: &str, name: &str, website_id: &str, current_id: &mut i
 
 #[cfg(not(target_arch = "wasm32"))]
 fn run_build(path: &str) -> std::io::Result<()> {
-    let result = cmd!("npm", "run", "build")
+    #[cfg(windows)]
+    const NPM: &str = "npm.cmd";
+    #[cfg(not(windows))]
+    const NPM: &str = "npm";
+    let result = cmd!(NPM, "run", "build")
         .dir(path)
         .stdout_capture()
         .stderr_capture()
