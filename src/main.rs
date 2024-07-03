@@ -1,10 +1,6 @@
 use std::fs::{File};
 use std::io::{Write, BufRead, BufReader, BufWriter};
 use walkdir::WalkDir;
-use wasm_bindgen::prelude::*;
-use web_sys::console;
-
-#[cfg(not(target_arch = "wasm32"))]
 use duct::cmd;
 
 const EDITABLE_SINGLE_TAGS: &[&str] = &[
@@ -68,9 +64,15 @@ fn modify_file(file_path: &str, name: &str, website_id: &str, current_id: &mut i
     let mut writer = BufWriter::new(temp_file);
 
     for line in reader.lines() {
-        let line = line?;
-        let modified_line = add_editable(&line, name, website_id, current_id);
-        writeln!(writer, "{modified_line}")?;
+        match line {
+            Ok(line) => {
+                let modified_line = add_editable(&line, name, website_id, current_id);
+                writeln!(writer, "{}", modified_line)?;
+            }
+            Err(err) => {
+                eprintln!("Error reading line from {file_path}: {err}");
+            }
+        }
     }
 
     writer.flush()?;
@@ -79,12 +81,13 @@ fn modify_file(file_path: &str, name: &str, website_id: &str, current_id: &mut i
     Ok(())
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 fn run_build(path: &str) -> std::io::Result<()> {
     #[cfg(windows)]
     const NPM: &str = "npm.cmd";
     #[cfg(not(windows))]
     const NPM: &str = "npm";
+
+
     let result = cmd!(NPM, "run", "build")
         .dir(path)
         .stdout_capture()
@@ -109,27 +112,25 @@ fn run_build(path: &str) -> std::io::Result<()> {
     Ok(())
 }
 
-fn io_error_to_js_value(err: std::io::Error) -> JsValue {
-    JsValue::from_str(&format!("{}", err))
-}
+fn main() -> std::io::Result<()> {
+    let root_dir = "C:/Users/erlan/RustroverProjects/Bundler/Simple";
 
-#[wasm_bindgen]
-pub fn run_wasm(root_dir: &str, name: &str, website_id: &str) -> Result<(), JsValue> {
-    let mut current_id: i32 = 0;
+    let name = "exampleName"; // Example name, replace with actual value
+    let website_id = "exampleWebsiteId"; // Example website ID, replace with actual value
+    let mut current_id = 0;
 
     for entry in WalkDir::new(root_dir).into_iter().filter_map(|e| e.ok()) {
-        if entry.file_type().is_dir() && entry.file_name() == "node_modules" {
-            continue;
-        }
         if entry.file_type().is_file() {
             let file_path = entry.path();
-            modify_file(file_path.to_str().unwrap(), name, website_id, &mut current_id)
-                .map_err(io_error_to_js_value)?;
+            if let Some(extension) = file_path.extension().and_then(|ext| ext.to_str()) {
+                if extension == "jsx" || extension == "tsx" {
+                    modify_file(file_path.to_str().unwrap(), name, website_id, &mut current_id)?;
+                }
+            }
         }
     }
 
-    #[cfg(not(target_arch = "wasm32"))]
-    run_build(root_dir).map_err(io_error_to_js_value)?;
+    run_build(root_dir)?;
 
     Ok(())
 }

@@ -5,7 +5,7 @@ edition = "2021"
 
 [[bin]]
 name = "bundler"
-path = "src/lib.rs"
+path = "src/main.rs"
 
 [dependencies]
 fs_extra = "1.2"
@@ -18,5 +18,5 @@ duct = "0.13"
 os_pipe = "1.2"
 shared_child = "1.0"
 
-[lib]
-crate-type = ["cdylib", "rlib"]
+#[lib]
+#crate-type = ["cdylib", "rlib"]
