@@ -16,21 +16,25 @@ const EDITABLE_TAGS: &[&str] = &[
     "i", "p", "q", "s", "u"
 ];
 
-fn check(line: &str) -> (bool, bool) {
-    if line.contains("id="){
-        return (false, false);
+fn leading_spaces(line: &str) -> usize {
+    line.chars().take_while(|&c| c == ' ').count()
+}
+
+fn check(line: &str) -> (bool, bool, &str) {
+    if line.contains("id=") {
+        return (false, false, "");
     }
     for tag in EDITABLE_TAGS.iter() {
         if line.contains(&format!("<{tag}")) && line.find("editable").is_some() {
             let is_single_tag = EDITABLE_SINGLE_TAGS.contains(tag);
-            return (true, is_single_tag);
+            return (true, is_single_tag, tag);
         }
     }
-    (false, false)
+    (false, false, "")
 }
 
 fn add_editable(line: &str, name: &str, website_id: &str, current_id: &mut i32) -> String {
-    let (is_editable, is_single_tag) = check(line);
+    let (is_editable, is_single_tag, _tag) = check(line);
     if is_editable {
         let mut pos: usize = 0;
         let mut found: bool = false;
@@ -55,6 +59,20 @@ fn add_editable(line: &str, name: &str, website_id: &str, current_id: &mut i32) 
     line.to_string()
 }
 
+fn add_import<W: Write>(writer: &mut W, lines: Vec<String>) -> std::io::Result<()> {
+    let import_statement = "import { Wrapper } from \"#spark-admin-sdk\";";
+
+    for line in lines {
+        let (is_editable, _is_single_tag, _tag) = check(&line);
+        if is_editable {
+            writeln!(writer, "{}", import_statement)?;
+            break;
+        }
+    }
+
+    Ok(())
+}
+
 fn modify_file(file_path: &str, name: &str, website_id: &str, current_id: &mut i32) -> std::io::Result<()> {
     let file = File::open(file_path)?;
     let reader = BufReader::new(file);
@@ -62,16 +80,38 @@ fn modify_file(file_path: &str, name: &str, website_id: &str, current_id: &mut i
     let temp_file_path = format!("{file_path}.tmp");
     let temp_file = File::create(&temp_file_path)?;
     let mut writer = BufWriter::new(temp_file);
+    let lines: Vec<String> = reader.lines().collect::<Result<_, _>>()?;
 
-    for line in reader.lines() {
-        match line {
-            Ok(line) => {
-                let modified_line = add_editable(&line, name, website_id, current_id);
+    add_import(&mut writer, lines)?;
+
+    let mut l: usize = 0;
+    while l < lines.len() {
+        let line = &lines[l];
+        let modified_line = add_editable(&line, name, website_id, current_id);
+        let (is_editable, is_single_tag, tag) = check(line);
+
+        if is_editable {
+            if is_single_tag {
                 writeln!(writer, "{}", modified_line)?;
+                l += 1;
+                continue;
             }
-            Err(err) => {
-                eprintln!("Error reading line from {file_path}: {err}");
+            let start = leading_spaces(&lines[l]);
+            writeln!(writer, "{}<Wrapper />", " ".repeat(start))?;
+            writeln!(writer, "{}", modified_line)?;
+            let mut r = l + 1;
+            while r < lines.len() && !lines[r].contains(&format!("</{}>", tag)) {
+                writeln!(writer, "{}", lines[r])?;
+                r += 1;
             }
+            if r < lines.len() {
+                writeln!(writer, "{}", lines[r])?;
+            }
+            l = r + 1;
+            writeln!(writer, "{}<Wrapper />", " ".repeat(start))?;
+        } else {
+            writeln!(writer, "{}", line)?;
+            l += 1;
         }
     }
 
@@ -79,6 +119,7 @@ fn modify_file(file_path: &str, name: &str, website_id: &str, current_id: &mut i
     std::fs::rename(temp_file_path, file_path)?;
 
     Ok(())
+
 }
 
 fn run_build(path: &str) -> std::io::Result<()> {
@@ -86,7 +127,6 @@ fn run_build(path: &str) -> std::io::Result<()> {
     const NPM: &str = "npm.cmd";
     #[cfg(not(windows))]
     const NPM: &str = "npm";
-
 
     let result = cmd!(NPM, "run", "build")
         .dir(path)
@@ -130,7 +170,7 @@ fn main() -> std::io::Result<()> {
         }
     }
 
-    run_build(root_dir)?;
+    // run_build(root_dir)?;
 
     Ok(())
 }
