@@ -73,6 +73,20 @@ fn add_import<W: Write>(writer: &mut W, lines: Vec<String>) -> std::io::Result<(
     Ok(())
 }
 
+fn add_import_sdk<W: Write>(writer: &mut W, lines: Vec<String>) -> std::io::Result<()> {
+    let import_statement = "import { TextMenu, LinkMenu, ColorMenu, BlockEditMenu, IconMenu, CustomColorMenu, ButtonMenu } from \"#spark-admin-sdk\";";
+
+    for line in lines {
+        let (is_editable, _is_single_tag, _tag) = check(&line);
+        if is_editable {
+            writeln!(writer, "{}", import_statement)?;
+            break;
+        }
+    }
+
+    Ok(())
+}
+
 fn modify_file(file_path: &str, name: &str, website_id: &str, current_id: &mut i32) -> std::io::Result<()> {
     let file = File::open(file_path)?;
     let reader = BufReader::new(file);
@@ -152,6 +166,41 @@ fn run_build(path: &str) -> std::io::Result<()> {
     Ok(())
 }
 
+fn modify_page(file_path: &str) -> std::io::Result<()> {
+    let file = File::open(file_path)?;
+    let reader = BufReader::new(file);
+
+    let temp_file_path = format!("{file_path}.tmp");
+    let temp_file = File::create(&temp_file_path)?;
+    let mut writer = BufWriter::new(temp_file);
+    let lines: Vec<String> = reader.lines().collect::<Result<_, _>>()?;
+
+    add_import_sdk(&mut writer, lines)?;
+    writeln!(writer, "{}", lines[0])?;
+
+    let mut l: usize = 1;
+    while l < lines.len() {
+        let line = &lines[l-1];
+
+        if line.contains("return"){
+            let start = leading_spaces(&lines[l]);
+            writeln!(writer, "{}<TextMenu />", " ".repeat(start))?;
+            writeln!(writer, "{}<LinkMenu />", " ".repeat(start))?;
+            writeln!(writer, "{}<ColorMenu />", " ".repeat(start))?;
+            writeln!(writer, "{}<BlockEditMenu />", " ".repeat(start))?;
+            writeln!(writer, "{}<CustomColorMenu />", " ".repeat(start))?;
+            writeln!(writer, "{}<ButtonMenu />", " ".repeat(start))?;
+        }
+        writeln!(writer, "{}", lines[l])?;
+        l += 1;
+    }
+
+    writer.flush()?;
+    std::fs::rename(temp_file_path, file_path)?;
+
+    Ok(())
+}
+
 fn main() -> std::io::Result<()> {
     let root_dir = "C:/Users/erlan/RustroverProjects/Bundler/Simple";
 
@@ -165,6 +214,21 @@ fn main() -> std::io::Result<()> {
             if let Some(extension) = file_path.extension().and_then(|ext| ext.to_str()) {
                 if extension == "jsx" || extension == "tsx" {
                     modify_file(file_path.to_str().unwrap(), name, website_id, &mut current_id)?;
+                }
+            }
+        }
+        if entry.file_type().is_dir() {
+            let dir_path = entry.path();
+            if dir_path.ends_with("pages") {
+                for inner_entry in WalkDir::new(dir_path).into_iter().filter_map(|e| e.ok()) {
+                    if inner_entry.file_type().is_file() {
+                        let file_path = inner_entry.path();
+                        if let Some(extension) = file_path.extension().and_then(|ext| ext.to_str()) {
+                            if extension == "jsx" || extension == "tsx" {
+                                modify_page(file_path.to_str().unwrap())?;
+                            }
+                        }
+                    }
                 }
             }
         }
