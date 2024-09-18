@@ -341,7 +341,7 @@ fn modify_file_with_wrapper(file_path: &str, name: &str, website_id: &str, curre
                     *current_id += 1;
                     writeln!(writer, "{}<Wrapper {}>", " ".repeat(start), new_id)?;
                     while l < lines.len() && !lines[l].contains(&format!("</{}>", tag)) {
-                        writeln!(writer, "{}", lines[l])?;
+                        writeln!(writer, "  {}", lines[l])?;
                         l += 1;
                     }
                     writeln!(writer, "  {}", lines[l])?;
@@ -433,7 +433,7 @@ fn modify_page(file_path: &str) -> std::io::Result<()> {
 }
 
 fn main() -> std::io::Result<()> {
-    let root_dir = "C:/Users/erlan/RustroverProjects/Bundler/Test";
+    let root_dir = "C:/Users/erlan/Documents/Spark/agro/src";
 
     let name = "exampleName"; // Example name, replace with actual value
     let website_id = "exampleWebsiteId"; // Example website ID, replace with actual value
